@@ -31,12 +31,12 @@
   <tr>
     <td><img src="assets/spots.png" alt="spots"></td>
     <td><img src="assets/holes.png" alt="holes"></td>
-    <td><img src="assets/hero.png" alt="coral" height="100%"></td>
+    <td><img src="assets/coral.png" alt="coral growing from a ring"></td>
   </tr>
   <tr>
     <td align="center"><b>spots</b> · <code>toxic</code></td>
     <td align="center"><b>holes</b> · <code>paper</code></td>
-    <td align="center"><b>coral</b> · <code>abyss</code></td>
+    <td align="center"><b>coral</b> · <code>ember</code> · ring seed</td>
   </tr>
 </table>
 
