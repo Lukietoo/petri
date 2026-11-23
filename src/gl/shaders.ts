@@ -1,3 +1,5 @@
+import { MAP_RANGE } from "../core/state";
+
 // GLSL sources for the simulation and display passes.
 
 export const quadVert = /* glsl */ `#version 300 es
@@ -47,8 +49,8 @@ void main() {
   float kill = uKill;
   if (uMap) {
     // Pearson's classic parameter map: feed along y, kill along x.
-    feed = mix(0.010, 0.090, vUv.y);
-    kill = mix(0.045, 0.070, vUv.x);
+    feed = mix(${MAP_RANGE.feed[0].toFixed(4)}, ${MAP_RANGE.feed[1].toFixed(4)}, vUv.y);
+    kill = mix(${MAP_RANGE.kill[0].toFixed(4)}, ${MAP_RANGE.kill[1].toFixed(4)}, vUv.x);
   }
 
   vec2 l = lap(c);
