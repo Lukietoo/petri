@@ -69,14 +69,28 @@ void main() {
   outColor = vec4(clamp(a, 0.0, 1.0), clamp(b, 0.0, 1.0), 0.0, 1.0);
 }`;
 
-// Colorize B through a 5-stop gradient, with a cheap emboss for a wet, 3D look.
+// Pass 1 (sim resolution): collapse A/B into a single height value and write it to a
+// half-float texture. Unlike RGBA32F, half-float textures can be linearly filtered on
+// every WebGL2 device, which lets the next pass upscale smoothly.
+export const fieldFrag = /* glsl */ `#version 300 es
+precision highp float;
+in vec2 vUv;
+out vec4 outColor;
+uniform sampler2D uState;
+void main() {
+  vec2 s = texture(uState, vUv).rg;
+  outColor = vec4(clamp((s.g - s.r) * 0.5 + 0.5, 0.0, 1.0), 0.0, 0.0, 1.0);
+}`;
+
+// Pass 2 (screen resolution): bicubic-upscale the height field, colorize it through a
+// 5-stop gradient, and light it with a cheap emboss for a wet, 3D look.
 export const displayFrag = /* glsl */ `#version 300 es
 precision highp float;
 in vec2 vUv;
 out vec4 outColor;
 
-uniform sampler2D uState;
-uniform vec2 uTexel;
+uniform sampler2D uField;
+uniform vec2 uSize;   // field size in texels
 uniform vec3 uStops[5];
 uniform float uShade;
 
@@ -91,20 +105,41 @@ vec3 ramp(float t) {
   return uStops[4];
 }
 
+// Cubic B-spline filtering in 4 bilinear taps (GPU Gems 2, ch. 20).
 float val(vec2 uv) {
-  vec2 s = texture(uState, uv).rg;
-  return clamp((s.g - s.r) * 0.5 + 0.5, 0.0, 1.0);
+  vec2 p = uv * uSize - 0.5;
+  vec2 i = floor(p);
+  vec2 f = p - i;
+  vec2 f2 = f * f;
+  vec2 f3 = f2 * f;
+  vec2 w0 = (1.0 - 3.0 * f + 3.0 * f2 - f3) / 6.0;
+  vec2 w1 = (4.0 - 6.0 * f2 + 3.0 * f3) / 6.0;
+  vec2 w2 = (1.0 + 3.0 * f + 3.0 * f2 - 3.0 * f3) / 6.0;
+  vec2 w3 = f3 / 6.0;
+  vec2 g0 = w0 + w1;
+  vec2 g1 = w2 + w3;
+  vec2 h0 = (i - 0.5 + w1 / g0) / uSize;
+  vec2 h1 = (i + 1.5 + w3 / g1) / uSize;
+  float a = texture(uField, vec2(h0.x, h0.y)).r;
+  float b = texture(uField, vec2(h1.x, h0.y)).r;
+  float c = texture(uField, vec2(h0.x, h1.y)).r;
+  float d = texture(uField, vec2(h1.x, h1.y)).r;
+  // g0 + g1 == 1, so g0 is directly the weight of the h0 taps
+  float top = mix(b, a, g0.x);
+  float bot = mix(d, c, g0.x);
+  return mix(bot, top, g0.y);
 }
 
 void main() {
   float v = val(vUv);
-  // map: A-dominant regions sit near 0.0, dense B near ~0.7; stretch it.
+  // A-dominant regions sit near 0.0, dense B near ~0.7; stretch that range.
   float t = smoothstep(0.08, 0.62, v);
   vec3 col = ramp(t);
 
-  // emboss lighting from the upper-left
-  float dx = val(vUv + vec2(uTexel.x, 0.0)) - val(vUv - vec2(uTexel.x, 0.0));
-  float dy = val(vUv + vec2(0.0, uTexel.y)) - val(vUv - vec2(0.0, uTexel.y));
+  // emboss lighting from the upper-left, sampled one field texel apart
+  vec2 e = 1.0 / uSize;
+  float dx = val(vUv + vec2(e.x, 0.0)) - val(vUv - vec2(e.x, 0.0));
+  float dy = val(vUv + vec2(0.0, e.y)) - val(vUv - vec2(0.0, e.y));
   vec3 n = normalize(vec3(-dx * 6.0, -dy * 6.0, 1.0));
   float light = dot(n, normalize(vec3(-0.5, 0.6, 0.65)));
   col *= mix(1.0, 0.55 + 0.6 * light, uShade);

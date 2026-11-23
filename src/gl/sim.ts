@@ -1,4 +1,4 @@
-import { displayFrag, quadVert, stepFrag } from "./shaders";
+import { displayFrag, fieldFrag, quadVert, stepFrag } from "./shaders";
 
 export interface SimParams {
   feed: number;
@@ -49,6 +49,8 @@ export class Sim {
   private front = 0;
   private stepProg: WebGLProgram;
   private drawProg: WebGLProgram;
+  private fieldProg: WebGLProgram;
+  private field: Target | null = null;
   private uStep: Record<string, WebGLUniformLocation | null> = {};
   private uDraw: Record<string, WebGLUniformLocation | null> = {};
 
@@ -68,21 +70,28 @@ export class Sim {
 
     this.stepProg = program(gl, quadVert, stepFrag);
     this.drawProg = program(gl, quadVert, displayFrag);
+    this.fieldProg = program(gl, quadVert, fieldFrag);
     for (const n of ["uState", "uTexel", "uFeed", "uKill", "uDiffA", "uDiffB", "uDt", "uMap", "uBrush", "uAspect"]) {
       this.uStep[n] = gl.getUniformLocation(this.stepProg, n);
     }
-    for (const n of ["uState", "uTexel", "uStops", "uShade"]) {
+    for (const n of ["uField", "uSize", "uStops", "uShade"]) {
       this.uDraw[n] = gl.getUniformLocation(this.drawProg, n);
     }
   }
 
-  private makeTarget(w: number, h: number, data: Float32Array | null): Target {
+  private makeTarget(w: number, h: number, data: Float32Array | null, smooth = false): Target {
     const gl = this.gl;
     const tex = gl.createTexture()!;
     gl.bindTexture(gl.TEXTURE_2D, tex);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, w, h, 0, gl.RGBA, gl.FLOAT, data);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    if (smooth) {
+      // half-float is always filterable in WebGL2; RGBA32F is not
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, w, h, 0, gl.RGBA, gl.HALF_FLOAT, null);
+    } else {
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, w, h, 0, gl.RGBA, gl.FLOAT, data);
+    }
+    const filter = smooth ? gl.LINEAR : gl.NEAREST;
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
     const fbo = gl.createFramebuffer()!;
@@ -95,7 +104,7 @@ export class Sim {
   reset(w: number, h: number, seed: Float32Array | null = null) {
     const gl = this.gl;
     if (this.targets) {
-      for (const t of this.targets) {
+      for (const t of [...this.targets, this.field!]) {
         gl.deleteTexture(t.tex);
         gl.deleteFramebuffer(t.fbo);
       }
@@ -107,6 +116,7 @@ export class Sim {
       for (let i = 0; i < w * h; i++) seed[i * 4] = 1;
     }
     this.targets = [this.makeTarget(w, h, seed), this.makeTarget(w, h, null)];
+    this.field = this.makeTarget(w, h, null, true);
     this.front = 0;
   }
 
@@ -142,15 +152,26 @@ export class Sim {
   /** Draw the current state to the canvas. `stops` is 5 RGB triples in 0..1. */
   draw(stops: Float32Array, shade: number) {
     const gl = this.gl;
+    gl.activeTexture(gl.TEXTURE0);
+
+    // pass 1: state -> filterable height field, at simulation resolution
+    gl.useProgram(this.fieldProg);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.field!.fbo);
+    gl.viewport(0, 0, this.width, this.height);
+    gl.bindTexture(gl.TEXTURE_2D, this.targets![this.front].tex);
+    gl.uniform1i(gl.getUniformLocation(this.fieldProg, "uState"), 0);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+    // pass 2: bicubic upscale + shading, at screen resolution
     gl.useProgram(this.drawProg);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, this.targets![this.front].tex);
-    gl.uniform1i(this.uDraw.uState, 0);
-    gl.uniform2f(this.uDraw.uTexel, 1 / this.width, 1 / this.height);
+    gl.bindTexture(gl.TEXTURE_2D, this.field!.tex);
+    gl.uniform1i(this.uDraw.uField, 0);
+    gl.uniform2f(this.uDraw.uSize, this.width, this.height);
     gl.uniform3fv(this.uDraw.uStops, stops);
     gl.uniform1f(this.uDraw.uShade, shade);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
+
 }
