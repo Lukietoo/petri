@@ -62,7 +62,7 @@ B eats A to make more of itself, A is fed in at rate **f**, and B dies off at ra
 - 🧬 **Nine species**: coral, mitosis, maze, spots, worms, holes, waves, chaos and u-skate. Press <kbd>1</kbd> to <kbd>9</kbd>.
 - 🗺️ **Parameter map**: sweeps feed along Y and kill along X so every regime grows side by side, and one click picks the species under the cursor.
 - 🔤 **Grow a word**: type text and it gets planted in the dish as glyph outlines.
-- 🎨 **Seven stains** with a wet emboss shader for a 3D, under-the-microscope look.
+- 🎨 **Seven stains**: low-contrast palettes with soft relief shading, designed to be easy to stare at.
 - 🔗 **Linkable dishes**: chemistry, stain and seed live in the URL hash.
 - 📸 **Snapshots** to PNG, plus a zen mode (<kbd>H</kbd>) for screen recordings.
 - 🖥️ **Headless renderer** for wallpapers and CI-friendly images.
@@ -141,7 +141,7 @@ test/         vitest suites
 - **Ping-pong float textures.** State lives in two `RGBA32F` framebuffers. Each step reads one and writes the other, and the speed slider sets how many steps run per frame.
 - **Toroidal world.** `REPEAT` sampling makes the dish wrap at the edges, so there are no hard boundaries.
 - **CPU twin.** `core/grayscott.ts` runs exactly the same stencil in TypeScript. That lets tests check real behaviour (coral spreads, high kill wipes out B, edges wrap) without a GPU.
-- **Fake depth.** The display pass treats the concentration as a height map, takes its gradient for a normal, and lights it, which gives the glossy, gel-like relief.
+- **Smooth upscaling and soft relief.** The grid is bicubic-upscaled to screen resolution, then treated as a height map and lit gently. Palettes avoid pure black and white so dense patterns don't glare.
 
 ## Scripts
 

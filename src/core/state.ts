@@ -22,8 +22,8 @@ export const DEFAULTS: AppState = {
   seed: 1,
   speed: 14,
   brush: 18,
-  resolution: 0.5,
-  shade: 0.8,
+  resolution: 0.35,
+  shade: 0.6,
   map: false,
 };
 

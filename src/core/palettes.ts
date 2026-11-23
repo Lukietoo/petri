@@ -4,14 +4,16 @@ export interface Palette {
   stops: readonly [string, string, string, string, string];
 }
 
+// Low-contrast by design: backgrounds are tinted rather than black and the brightest
+// stop stays well short of white, so dense patterns don't strobe or glare.
 export const PALETTES: readonly Palette[] = [
-  { id: "abyss", stops: ["#04060c", "#0b2a3c", "#1f8a8a", "#9fe7d0", "#ffffff"] },
-  { id: "ember", stops: ["#0a0302", "#3d0c02", "#c2410c", "#fbbf24", "#fff7e0"] },
-  { id: "orchid", stops: ["#07030f", "#2e1065", "#a21caf", "#f0abfc", "#fdf4ff"] },
-  { id: "toxic", stops: ["#020702", "#0f2e12", "#3f9b0b", "#c6f432", "#f7ffe0"] },
-  { id: "ice", stops: ["#f5f9ff", "#cfe3ff", "#6aa8ff", "#1d4ed8", "#0b1640"] },
-  { id: "paper", stops: ["#f4efe4", "#e6dcc6", "#a08c6c", "#3b3127", "#141010"] },
-  { id: "sunset", stops: ["#120318", "#5b1a4a", "#e2445c", "#ffa45b", "#ffe8a3"] },
+  { id: "abyss", stops: ["#0d1a24", "#12303d", "#2a6b70", "#6fb3a6", "#bfe3d4"] },
+  { id: "ember", stops: ["#1a0f0c", "#3a1a12", "#9a4a26", "#d98d4a", "#f0c89a"] },
+  { id: "orchid", stops: ["#150f22", "#2c1b47", "#6b3b8c", "#b27fc6", "#e5c9ee"] },
+  { id: "toxic", stops: ["#0f1610", "#1d3320", "#4a7a3c", "#95b866", "#d9e8b0"] },
+  { id: "ice", stops: ["#e9eef5", "#cdd9ea", "#8fa9cf", "#4f6fa6", "#2a3f6b"] },
+  { id: "paper", stops: ["#efe8da", "#ddd1bb", "#b09c7c", "#6e5c47", "#3d3229"] },
+  { id: "sunset", stops: ["#1c1020", "#3d1b38", "#8f3f57", "#d9826a", "#f4c9a0"] },
 ];
 
 export function paletteById(id: string): Palette | undefined {

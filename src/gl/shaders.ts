@@ -132,18 +132,25 @@ float val(vec2 uv) {
 
 void main() {
   float v = val(vUv);
-  // A-dominant regions sit near 0.0, dense B near ~0.7; stretch that range.
-  float t = smoothstep(0.08, 0.62, v);
+  // A-dominant regions sit near 0.0, dense B near ~0.5-0.7. A wide, gentle ramp lets
+  // shapes fade into the background instead of cutting a hard edge.
+  float t = smoothstep(0.05, 0.55, v);
   vec3 col = ramp(t);
 
-  // emboss lighting from the upper-left, sampled one field texel apart
+  // soft diffuse relief from the upper-left (shallow normals, no dark rims)
   vec2 e = 1.0 / uSize;
   float dx = val(vUv + vec2(e.x, 0.0)) - val(vUv - vec2(e.x, 0.0));
   float dy = val(vUv + vec2(0.0, e.y)) - val(vUv - vec2(0.0, e.y));
-  vec3 n = normalize(vec3(-dx * 6.0, -dy * 6.0, 1.0));
+  vec3 n = normalize(vec3(-dx * 4.0, -dy * 4.0, 1.0));
   float light = dot(n, normalize(vec3(-0.5, 0.6, 0.65)));
-  col *= mix(1.0, 0.55 + 0.6 * light, uShade);
-  col += uShade * 0.35 * pow(max(light, 0.0), 24.0); // specular glint
+  float diffuse = clamp(0.78 + 0.32 * light, 0.72, 1.12);
+  col *= mix(1.0, diffuse, uShade);
+  // faint sheen tinted by the palette's brightest stop rather than pure white
+  col += uShade * 0.07 * pow(max(light, 0.0), 6.0) * uStops[4];
+
+  // gentle vignette keeps the eye in the middle and calms the edges
+  float r = length((vUv - 0.5) * vec2(1.0, 0.85));
+  col *= mix(1.0, 0.8, smoothstep(0.35, 0.85, r));
 
   outColor = vec4(col, 1.0);
 }`;

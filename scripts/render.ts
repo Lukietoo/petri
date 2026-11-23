@@ -22,7 +22,7 @@ const { values: args } = parseArgs({
     steps: { type: "string", default: "5000" },
     feed: { type: "string" },
     kill: { type: "string" },
-    shade: { type: "string", default: "0.8" },
+    shade: { type: "string", default: "0.6" },
     out: { type: "string", default: "petri.png" },
     help: { type: "boolean", short: "h" },
   },
@@ -91,6 +91,7 @@ const smooth = (e0: number, e1: number, x: number) => {
 };
 
 const L = [-0.5, -0.6, 0.65];
+const top = sampleRamp(palette, 1);
 const ln = Math.hypot(...L);
 const rgb = new Uint8Array(W * H * 3);
 for (let py = 0; py < H; py++) {
@@ -98,18 +99,20 @@ for (let py = 0; py < H; py++) {
     const x = (px + 0.5) / scale - 0.5;
     const y = (py + 0.5) / scale - 0.5;
     const val = field(x, y);
-    let [r, g, b] = sampleRamp(palette, smooth(0.08, 0.62, val));
+    let [r, g, b] = sampleRamp(palette, smooth(0.05, 0.55, val));
     const dx = field(x + 1, y) - field(x - 1, y);
     const dy = field(x, y + 1) - field(x, y - 1);
-    const nx = -dx * 6;
-    const ny = -dy * 6;
+    const nx = -dx * 4;
+    const ny = -dy * 4;
     const nl = Math.hypot(nx, ny, 1);
     const light = (nx * L[0] + ny * L[1] + L[2]) / (nl * ln);
-    const k = 1 + shade * (0.55 + 0.6 * light - 1);
-    const spec = shade * 0.35 * Math.pow(Math.max(light, 0), 24);
-    r = r * k + spec;
-    g = g * k + spec;
-    b = b * k + spec;
+    const diffuse = Math.min(1.12, Math.max(0.72, 0.78 + 0.32 * light));
+    const k = 1 + shade * (diffuse - 1);
+    const sheen = shade * 0.07 * Math.pow(Math.max(light, 0), 6);
+    const vig = 1 - 0.2 * smooth(0.35, 0.85, Math.hypot(px / W - 0.5, (py / H - 0.5) * 0.85));
+    r = (r * k + sheen * top[0]) * vig;
+    g = (g * k + sheen * top[1]) * vig;
+    b = (b * k + sheen * top[2]) * vig;
     const o = (py * W + px) * 3;
     rgb[o] = Math.round(Math.min(1, Math.max(0, r)) * 255);
     rgb[o + 1] = Math.round(Math.min(1, Math.max(0, g)) * 255);
