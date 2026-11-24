@@ -132,21 +132,33 @@ float val(vec2 uv) {
 
 void main() {
   float v = val(vUv);
-  // A-dominant regions sit near 0.0, dense B near ~0.5-0.7. A wide, gentle ramp lets
-  // shapes fade into the background instead of cutting a hard edge.
-  float t = smoothstep(0.05, 0.55, v);
-  vec3 col = ramp(t);
 
-  // soft diffuse relief from the upper-left (shallow normals, no dark rims)
+  // Treat the smooth field as a shape: everything above EDGE is "growth". The edge is
+  // anti-aliased over ~1 screen pixel (fwidth), so outlines stay vector-crisp no matter
+  // how far the simulation grid is upscaled.
+  const float EDGE = 0.22;
+  float aa = max(fwidth(v), 1e-4);
+  float cover = smoothstep(EDGE - aa, EDGE + aa, v);
+
+  // inside: tone runs from the mid stop at the rim to the brightest stop at the core
+  // (a short, narrow range: a wide one leaves a pale ring that reads as fuzz)
+  float depth = smoothstep(EDGE, EDGE + 0.2, v);
+  vec3 inside = ramp(0.9 + 0.1 * depth);
+
+  // outside: flat background with a thin, faint contact shadow right at the rim
+  // (kept tight on purpose: a wide halo reads as blur)
+  float near = smoothstep(EDGE * 0.85, EDGE, v);
+  vec3 outside = uStops[0] * (1.0 - 0.12 * near * uShade);
+
+  // gentle diffuse relief on the growth only
   vec2 e = 1.0 / uSize;
   float dx = val(vUv + vec2(e.x, 0.0)) - val(vUv - vec2(e.x, 0.0));
   float dy = val(vUv + vec2(0.0, e.y)) - val(vUv - vec2(0.0, e.y));
   vec3 n = normalize(vec3(-dx * 4.0, -dy * 4.0, 1.0));
   float light = dot(n, normalize(vec3(-0.5, 0.6, 0.65)));
-  float diffuse = clamp(0.78 + 0.32 * light, 0.72, 1.12);
-  col *= mix(1.0, diffuse, uShade);
-  // faint sheen tinted by the palette's brightest stop rather than pure white
-  col += uShade * 0.07 * pow(max(light, 0.0), 6.0) * uStops[4];
+  inside *= mix(1.0, clamp(0.8 + 0.3 * light, 0.75, 1.1), uShade);
+
+  vec3 col = mix(outside, inside, cover);
 
   // gentle vignette keeps the eye in the middle and calms the edges
   float r = length((vUv - 0.5) * vec2(1.0, 0.85));

@@ -22,7 +22,7 @@ export const DEFAULTS: AppState = {
   seed: 1,
   speed: 14,
   brush: 18,
-  resolution: 0.35,
+  resolution: 0.75,
   shade: 0.6,
   map: false,
 };

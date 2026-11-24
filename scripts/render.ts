@@ -71,19 +71,28 @@ const A = sim.A;
 const B = sim.B;
 const W = w * scale;
 const H = h * scale;
+const cell = (cx: number, cy: number) => {
+  const i = (((cy % h) + h) % h) * w + (((cx % w) + w) % w);
+  return Math.min(1, Math.max(0, (B[i] - A[i]) * 0.5 + 0.5));
+};
+const bspline = (t: number): [number, number, number, number] => {
+  const t2 = t * t;
+  const t3 = t2 * t;
+  return [(1 - 3 * t + 3 * t2 - t3) / 6, (4 - 6 * t2 + 3 * t3) / 6, (1 + 3 * t + 3 * t2 - 3 * t3) / 6, t3 / 6];
+};
+// cubic B-spline sample of (B - A) * 0.5 + 0.5 in cell space, same filter as the shader
 const field = (x: number, y: number) => {
-  // bilinear sample of (B - A) * 0.5 + 0.5 with wrapping, in cell space
   const x0 = Math.floor(x);
   const y0 = Math.floor(y);
-  const fx = x - x0;
-  const fy = y - y0;
-  const v = (cx: number, cy: number) => {
-    const i = (((cy % h) + h) % h) * w + (((cx % w) + w) % w);
-    return Math.min(1, Math.max(0, (B[i] - A[i]) * 0.5 + 0.5));
-  };
-  const top = v(x0, y0) * (1 - fx) + v(x0 + 1, y0) * fx;
-  const bot = v(x0, y0 + 1) * (1 - fx) + v(x0 + 1, y0 + 1) * fx;
-  return top * (1 - fy) + bot * fy;
+  const wx = bspline(x - x0);
+  const wy = bspline(y - y0);
+  let sum = 0;
+  for (let j = 0; j < 4; j++) {
+    let row = 0;
+    for (let i = 0; i < 4; i++) row += wx[i] * cell(x0 - 1 + i, y0 - 1 + j);
+    sum += wy[j] * row;
+  }
+  return sum;
 };
 const smooth = (e0: number, e1: number, x: number) => {
   const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)));
@@ -91,32 +100,40 @@ const smooth = (e0: number, e1: number, x: number) => {
 };
 
 const L = [-0.5, -0.6, 0.65];
-const top = sampleRamp(palette, 1);
 const ln = Math.hypot(...L);
+const EDGE = 0.22;
+const bg = sampleRamp(palette, 0);
 const rgb = new Uint8Array(W * H * 3);
 for (let py = 0; py < H; py++) {
   for (let px = 0; px < W; px++) {
     const x = (px + 0.5) / scale - 0.5;
     const y = (py + 0.5) / scale - 0.5;
     const val = field(x, y);
-    let [r, g, b] = sampleRamp(palette, smooth(0.05, 0.55, val));
+
+    // anti-aliased edge ~1 output pixel wide (CPU stand-in for fwidth)
+    const fw = Math.abs(field(x + 1 / scale, y) - val) + Math.abs(field(x, y + 1 / scale) - val);
+    const aa = Math.max(fw, 1e-4);
+    const cover = smooth(EDGE - aa, EDGE + aa, val);
+
+    const depth = smooth(EDGE, EDGE + 0.2, val);
+    let [r, g, b] = sampleRamp(palette, 0.9 + 0.1 * depth);
     const dx = field(x + 1, y) - field(x - 1, y);
     const dy = field(x, y + 1) - field(x, y - 1);
     const nx = -dx * 4;
     const ny = -dy * 4;
     const nl = Math.hypot(nx, ny, 1);
     const light = (nx * L[0] + ny * L[1] + L[2]) / (nl * ln);
-    const diffuse = Math.min(1.12, Math.max(0.72, 0.78 + 0.32 * light));
-    const k = 1 + shade * (diffuse - 1);
-    const sheen = shade * 0.07 * Math.pow(Math.max(light, 0), 6);
+    const k = 1 + shade * (Math.min(1.1, Math.max(0.75, 0.8 + 0.3 * light)) - 1);
+    r *= k;
+    g *= k;
+    b *= k;
+
+    const near = smooth(EDGE * 0.85, EDGE, val);
+    const ok = 1 - 0.12 * near * shade;
     const vig = 1 - 0.2 * smooth(0.35, 0.85, Math.hypot(px / W - 0.5, (py / H - 0.5) * 0.85));
-    r = (r * k + sheen * top[0]) * vig;
-    g = (g * k + sheen * top[1]) * vig;
-    b = (b * k + sheen * top[2]) * vig;
     const o = (py * W + px) * 3;
-    rgb[o] = Math.round(Math.min(1, Math.max(0, r)) * 255);
-    rgb[o + 1] = Math.round(Math.min(1, Math.max(0, g)) * 255);
-    rgb[o + 2] = Math.round(Math.min(1, Math.max(0, b)) * 255);
+    const out = [bg[0] * ok + (r - bg[0] * ok) * cover, bg[1] * ok + (g - bg[1] * ok) * cover, bg[2] * ok + (b - bg[2] * ok) * cover];
+    for (let c = 0; c < 3; c++) rgb[o + c] = Math.round(Math.min(1, Math.max(0, out[c] * vig)) * 255);
   }
 }
 

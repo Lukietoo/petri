@@ -141,7 +141,7 @@ test/         vitest suites
 - **Ping-pong float textures.** State lives in two `RGBA32F` framebuffers. Each step reads one and writes the other, and the speed slider sets how many steps run per frame.
 - **Toroidal world.** `REPEAT` sampling makes the dish wrap at the edges, so there are no hard boundaries.
 - **CPU twin.** `core/grayscott.ts` runs exactly the same stencil in TypeScript. That lets tests check real behaviour (coral spreads, high kill wipes out B, edges wrap) without a GPU.
-- **Smooth upscaling and soft relief.** The grid is bicubic-upscaled to screen resolution, then treated as a height map and lit gently. Palettes avoid pure black and white so dense patterns don't glare.
+- **Crisp at any scale.** The grid is bicubic-upscaled, then drawn as shapes whose outlines are anti-aliased to about one screen pixel (`fwidth`), so edges stay sharp however far the simulation is stretched. Inside, a gentle height-map light gives soft relief. Palettes avoid pure black and white so dense patterns don't glare.
 
 ## Scripts
 
